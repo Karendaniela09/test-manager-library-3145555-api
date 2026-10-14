@@ -38,6 +38,13 @@ return [
             'report' => false,
         ],
 
+        'covers' => [
+            'driver' => 'local',
+            'root' => env('COVERS_DIR', storage_path('app/covers')),
+            'throw' => true,
+            'report' => true,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),
