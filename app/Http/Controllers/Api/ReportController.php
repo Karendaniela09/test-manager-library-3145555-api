@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Api;
 
 use App\Exceptions\ApiException;
+use App\Domain\Shared\DateRange;
 use App\Http\Controllers\Controller;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 
 class ReportController extends Controller
 {
@@ -17,7 +19,11 @@ class ReportController extends Controller
             'from' => ['required', 'date_format:Y-m-d'],
             'to' => ['required', 'date_format:Y-m-d'],
         ]);
-        if ($data['to'] < $data['from']) {
+        $from = CarbonImmutable::parse($data['from'], 'UTC')->startOfDay();
+        $to = CarbonImmutable::parse($data['to'], 'UTC')->startOfDay();
+        try {
+            $range = new DateRange($from, $to);
+        } catch (InvalidArgumentException) {
             throw new ApiException(
                 'INVALID_DATE_RANGE',
                 'La fecha final debe ser igual o posterior a la inicial.',
@@ -25,8 +31,7 @@ class ReportController extends Controller
             );
         }
 
-        $from = CarbonImmutable::parse($data['from'], 'UTC')->startOfDay();
-        $until = CarbonImmutable::parse($data['to'], 'UTC')->addDay()->startOfDay();
+        $until = $range->to->modify('+1 day');
         $rows = DB::table('library.loan as l')
             ->join('library.loan_item as li', 'li.loan_id', '=', 'l.id')
             ->where('l.loaned_at', '>=', $from)

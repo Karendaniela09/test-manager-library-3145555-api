@@ -15,7 +15,7 @@ class UserController extends Controller
     {
         $data = $request->validate([
             'username' => ['required', 'string', 'max:120'],
-            'password' => ['required', 'string', 'min:8'],
+            'password' => ['required', 'string'],
             'role' => ['required', 'in:librarian'],
         ]);
         $user = [

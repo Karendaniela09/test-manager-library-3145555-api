@@ -12,4 +12,15 @@ class HealthEndpointTest extends TestCase
             ->assertOk()
             ->assertExactJson(['status' => 'ok']);
     }
+
+    public function test_protected_endpoint_rejects_missing_bearer_token_in_contract_format(): void
+    {
+        $this->getJson('/api/v1/categories')
+            ->assertUnauthorized()
+            ->assertExactJson([
+                'code' => 'UNAUTHENTICATED',
+                'message' => 'Autenticación requerida.',
+                'details' => [],
+            ]);
+    }
 }

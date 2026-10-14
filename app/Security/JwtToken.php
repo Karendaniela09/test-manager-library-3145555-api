@@ -44,9 +44,13 @@ class JwtToken
             return null;
         }
 
+        $headerClaims = json_decode($this->decode($header), true);
         $claims = json_decode($this->decode($payload), true);
 
-        if (! is_array($claims)
+        if (! is_array($headerClaims)
+            || ($headerClaims['alg'] ?? null) !== 'HS256'
+            || ($headerClaims['typ'] ?? null) !== 'JWT'
+            || ! is_array($claims)
             || ! isset($claims['sub'], $claims['role'], $claims['exp'])
             || ! is_string($claims['sub'])
             || ! in_array($claims['role'], ['admin', 'librarian'], true)

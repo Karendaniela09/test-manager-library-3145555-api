@@ -3,6 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Exceptions\ApiException;
+use App\Domain\Book\Isbn;
+use App\Domain\Book\Inventory;
+use App\Domain\Book\Quantity;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -64,15 +67,17 @@ class BookController extends Controller
             'category_id' => ['required', 'uuid', Rule::exists('library.category', 'id')],
             'total_copies' => ['required', 'integer', 'min:1'],
         ]);
+        $isbn = new Isbn($data['isbn']);
+        $total = new Quantity($data['total_copies']);
         $id = (string) Str::uuid();
         DB::table('library.book')->insert([
             'id' => $id,
             'title' => trim($data['title']),
             'author' => trim($data['author']),
-            'isbn' => $data['isbn'],
+            'isbn' => $isbn->value,
             'category_id' => $data['category_id'],
-            'total_copies' => $data['total_copies'],
-            'available_copies' => $data['total_copies'],
+            'total_copies' => $total->value,
+            'available_copies' => $total->value,
             'cover_key' => null,
             'deleted_at' => null,
         ]);
@@ -99,20 +104,16 @@ class BookController extends Controller
                 $this->notFound();
             }
 
-            $available = $book->available_copies + $data['total_copies'] - $book->total_copies;
-            if ($available < 0) {
-                throw new ApiException(
-                    'VALIDATION_ERROR',
-                    'El total no puede ser menor que los ejemplares prestados.',
-                    422,
-                );
-            }
+            $inventory = (new Inventory(
+                (int) $book->total_copies,
+                (int) $book->available_copies,
+            ))->changeTotal(new Quantity($data['total_copies']));
             DB::table('library.book')->where('id', $id)->update([
                 'title' => trim($data['title']),
                 'author' => trim($data['author']),
                 'category_id' => $data['category_id'],
                 'total_copies' => $data['total_copies'],
-                'available_copies' => $available,
+                'available_copies' => $inventory->available,
             ]);
         });
 

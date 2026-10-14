@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Exceptions\ApiException;
+use App\Domain\Loan\LoanPolicy;
+use App\Domain\Loan\LoanStatus;
 use App\Http\Controllers\Controller;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
@@ -16,7 +18,12 @@ class LoanController extends Controller
     {
         $rawItems = $request->input('items');
         if (is_array($rawItems)) {
-            $ids = array_column($rawItems, 'book_id');
+            $ids = array_values(array_filter(array_map(
+                fn ($item) => is_array($item) && is_string($item['book_id'] ?? null)
+                    ? $item['book_id']
+                    : null,
+                $rawItems,
+            )));
             if (count($ids) !== count(array_unique($ids))) {
                 throw new ApiException(
                     'DUPLICATE_BOOK_IN_LOAN',
@@ -45,7 +52,7 @@ class LoanController extends Controller
                 ->where('l.member_id', $member->id)
                 ->whereNull('li.returned_at')
                 ->count();
-            if ($activeCount + count($data['items']) > 3) {
+            if ($activeCount + count($data['items']) > LoanPolicy::MAX_UNRETURNED_BOOKS) {
                 throw new ApiException(
                     'MEMBER_LIMIT_EXCEEDED',
                     'El socio superaría el límite de tres libros sin devolver.',
@@ -111,7 +118,7 @@ class LoanController extends Controller
                     'book_title' => $book->title,
                     'isbn' => $book->isbn,
                     'category_name' => $book->category_name,
-                    'due_at' => $now->addDays(14),
+                    'due_at' => LoanPolicy::dueAt($now),
                     'returned_at' => null,
                 ]);
             }
@@ -132,6 +139,13 @@ class LoanController extends Controller
             'page' => ['sometimes', 'integer', 'min:1'],
             'size' => ['sometimes', 'integer', 'min:1', 'max:50'],
         ]);
+        if (isset($data['from'], $data['to']) && $data['to'] < $data['from']) {
+            throw new ApiException(
+                'INVALID_DATE_RANGE',
+                'La fecha final debe ser igual o posterior a la inicial.',
+                422,
+            );
+        }
         $page = (int) ($data['page'] ?? 1);
         $size = (int) ($data['size'] ?? 20);
         $now = now('UTC');
@@ -266,16 +280,18 @@ class LoanController extends Controller
     private function serializeLoan(object $loan): array
     {
         $items = $loan->items->map(fn (object $item): array => $this->serializeItem($item));
-        $isOpen = $items->contains(fn (array $item): bool => $item['returned_at'] === null);
-        $isOverdue = $items->contains(
-            fn (array $item): bool => $item['returned_at'] === null && CarbonImmutable::parse($item['due_at'])->isPast(),
-        );
+        $stateItems = $loan->items->map(fn (object $item): array => [
+            'due_at' => CarbonImmutable::parse($item->due_at)->utc(),
+            'returned_at' => $item->returned_at === null
+                ? null
+                : CarbonImmutable::parse($item->returned_at)->utc(),
+        ])->all();
 
         return [
             'id' => $loan->id,
             'member_id' => $loan->member_id,
             'loaned_at' => CarbonImmutable::parse($loan->loaned_at)->utc()->toISOString(),
-            'status' => ! $isOpen ? 'closed' : ($isOverdue ? 'overdue' : 'open'),
+            'status' => LoanStatus::calculate($stateItems, CarbonImmutable::now('UTC'))->value,
             'items' => $items,
         ];
     }

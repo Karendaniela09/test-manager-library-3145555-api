@@ -7,6 +7,25 @@ Este repositorio es el **backend** de *Manager Library*, en **PHP con Laravel**.
 
 ## Instrucciones
 
+## Desarrollo y verificación local
+
+El backend usa PHP 8.4 para el contenedor (el `composer.lock` actual contiene Symfony 8, compatible
+con PHP 8.4; `composer.json` conserva el requisito `^8.3`). Desde `infra`, configure variables
+locales privadas y arranque PostgreSQL y la API:
+
+```powershell
+docker compose up --build -d postgres api
+docker compose exec api php artisan migrate --force
+docker compose exec api php artisan library:bootstrap-admin
+docker compose exec api php artisan test
+```
+
+La base permanece vacía hasta `migrate`. `GET /health` es público y responde `{"status":"ok"}`.
+Las rutas operativas viven bajo `/api/v1`; se necesita el JWT emitido por `/auth/login`.
+
+Migraciones controlan el esquema PostgreSQL `library`, sus seis tablas, categorías, índices y
+restricciones. `.env` contiene únicamente configuración local y no debe publicarse.
+
 Cada aprendiz debe **crear el fork** de los seis repositorios del proyecto y **resolver el proyecto
 con el spec planteado**.
 

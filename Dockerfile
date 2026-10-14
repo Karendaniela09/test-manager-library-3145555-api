@@ -7,6 +7,10 @@ RUN apt-get update \
     && docker-php-ext-install dom mbstring pdo_pgsql xml xmlwriter \
     && rm -rf /var/lib/apt/lists/*
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends unzip \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
